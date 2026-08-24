@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karir Bersama Kami</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .job-card { transition: transform 0.15s, box-shadow 0.15s; }
+    .job-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -8px rgb(0 0 0 / 0.12); }
+    .modal-backdrop { background: rgba(15,23,42,0.55); backdrop-filter: blur(4px); }
+    .toast { animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold text-lg">RT</div>
+        <div>
+          <div class="font-bold text-slate-800 leading-tight">Karir Bersama Kami</div>
+          <div id="headerBrandText" class="text-xs text-slate-500">Memuat perusahaan...</div>
+        </div>
+      </div>
+      <div id="headerBrandChips" class="hidden sm:flex flex-wrap justify-end items-center gap-2 text-sm text-slate-500"></div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="bg-gradient-to-b from-primary-600 to-primary-700 text-white">
+    <div class="max-w-5xl mx-auto px-4 py-12 sm:py-16 text-center">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Temukan Peluang Karir Terbaik</h1>
+      <p class="mt-3 text-primary-100 text-base sm:text-lg max-w-2xl mx-auto">
+        Bergabunglah dengan tim kami. Temukan posisi yang sesuai dengan pengalaman dan potensi Anda.
+      </p>
+      <div class="mt-6 flex justify-center gap-4 text-sm">
+        <div class="flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5">
+          <i class="fas fa-briefcase"></i>
+          <span id="jobCountLabel">0 Lowongan</span>
+        </div>
+        <div class="flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5">
+          <i class="fas fa-building"></i>
+          <span id="brandCountLabel">0 Perusahaan</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter & Content -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <!-- Filters -->
+    <div id="brandFilters" class="flex flex-wrap gap-2 mb-6"></div>
+
+    <!-- Success box -->
+    <div id="successBox" class="hidden mb-6 bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
+      <div class="w-14 h-14 mx-auto bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl mb-3">
+        <i class="fas fa-check"></i>
+      </div>
+      <h3 class="font-bold text-green-800 text-xl">Lamaran Berhasil Dikirim!</h3>
+      <p class="text-sm text-green-700 mt-1">ID Kandidat Anda: <strong id="successId" class="font-mono"></strong></p>
+      <p class="text-sm text-slate-600 mt-2 max-w-md mx-auto">Tim rekrutmen kami akan meninjau lamaran Anda dan menghubungi melalui WhatsApp/Email. Simpan ID ini untuk referensi.</p>
+      <button onclick="hideSuccess()" class="mt-5 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+        Lihat Lowongan Lain
+      </button>
+    </div>
+
+    <!-- Job list -->
+    <div id="jobList" class="grid gap-4"></div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="hidden text-center py-20 text-slate-400">
+      <i class="fas fa-briefcase text-5xl mb-4 opacity-40"></i>
+      <p class="text-lg">Tidak ada lowongan aktif saat ini</p>
+      <p class="text-sm mt-1">Silakan cek kembali nanti</p>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 mt-12 py-8 text-center text-sm text-slate-400">
+    <p id="footerCompanies">© 2026</p>
+    <p class="mt-1 text-xs">Halaman karir resmi · Data dilindungi</p>
+  </footer>
+
+  <!-- Modal Apply -->
+  <div id="modalBackdrop" class="fixed inset-0 modal-backdrop z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex items-start justify-between mb-5">
+          <div>
+            <h3 class="font-bold text-lg" id="modalJobTitle">Lamar Posisi</h3>
+            <p class="text-sm text-slate-500 mt-0.5" id="modalJobMeta"></p>
+          </div>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-times text-lg"></i></button>
+        </div>
+
+        <form id="applyForm" onsubmit="submitApply(event)" class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Nama Lengkap *</label>
+            <input type="text" id="fName" required class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Sesuai KTP">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Email *</label>
+              <input type="email" id="fEmail" required class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="email@contoh.com">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">WhatsApp *</label>
+              <input type="tel" id="fPhone" required class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="08xxxxxxxxxx">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Kota Domisili</label>
+              <input type="text" id="fCity" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Pontianak">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Tanggal Lahir</label>
+              <input type="date" id="fBirth" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Pendidikan</label>
+              <select id="fEducation" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option>SMA/SMK</option>
+                <option>D3</option>
+                <option selected>S1</option>
+                <option>S2</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Jurusan</label>
+              <input type="text" id="fMajor" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Opsional">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Perusahaan Terakhir</label>
+            <input type="text" id="fLastCompany" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Nama perusahaan">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Jabatan Terakhir</label>
+            <input type="text" id="fLastRole" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Posisi terakhir">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Total Pengalaman (tahun)</label>
+              <input type="number" id="fExp" min="0" max="40" value="0" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Ekspektasi Gaji (Rp)</label>
+              <input type="number" id="fSalary" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Contoh: 4500000">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Kapan bisa bergabung?</label>
+              <select id="fNotice" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="Segera">Bisa segera</option>
+                <option value="1 minggu">1 minggu</option>
+                <option value="2 minggu" selected>2 minggu</option>
+                <option value="1 bulan">1 bulan</option>
+                <option value=">1 bulan">> 1 bulan</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600 mb-1 block">Bersedia shift?</label>
+              <select id="fShift" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="Ya">Ya</option>
+                <option value="Tidak">Tidak</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Alasan ingin bergabung *</label>
+            <textarea id="fReason" rows="2" required class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" placeholder="Wajib diisi — ceritakan motivasi Anda"></textarea>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Dari mana Anda tahu lowongan ini?</label>
+            <select id="fSource" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"></select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Upload CV * (wajib PDF, max 5MB)</label>
+            <input type="file" id="fCV" required accept=".pdf,application/pdf" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 file:text-xs file:font-medium">
+            <p class="text-[11px] text-slate-400 mt-1"><i class="fas fa-info-circle mr-0.5"></i> Hanya file <strong>PDF</strong>. Format Word (.doc / .docx) tidak diterima.</p>
+          </div>
+          <input type="hidden" id="fReqId">
+          <div class="flex gap-2 pt-2">
+            <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 font-medium">Batal</button>
+            <button type="submit" class="flex-1 px-4 py-2.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+              <i class="fas fa-paper-plane mr-1.5"></i>Kirim Lamaran
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-[100] space-y-2"></div>
+
+  <script>
+    // ========== SUPABASE CONFIG ==========
+    const SUPABASE_URL = 'https://nhzlsxvrlqswdxsnkwhv.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_5CArCM5F9Oxl_i1aWZzd_Q_G-yFAzv-';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let DB = { companies: [], branches: [], sources: [], positions: [], requisitions: [], position_requirements: [] };
+    let currentFilter = 'all';
+
+    function esc(v) { return String(v ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+    function getCompany(id) { return DB.companies?.find(c => c.company_id === id); }
+    function getPosition(id) { return DB.positions?.find(p => p.position_id === id); }
+    function getBranch(id) { return DB.branches?.find(b => b.branch_id === id); }
+    function activeCompanyIds() { return [...new Set((DB.requisitions||[]).map(r => r.company_id).filter(Boolean))]; }
+    function activeCompanies() {
+      const ids=new Set(activeCompanyIds()), seen=new Set();
+      return (DB.companies||[]).filter(c => ids.has(c.company_id) && !seen.has(c.company_id) && seen.add(c.company_id))
+        .sort((a,b)=>String(a.brand||a.company_name||'').localeCompare(String(b.brand||b.company_name||''),'id'));
+    }
+
+    async function loadFromSupabase() {
+      // Gunakan RPC restricted yang sama dengan ATS V1.1 agar tabel privat tidak dibuka ke publik.
+      const { data, error } = await supabaseClient.rpc('get_public_career_data');
+      if (error) throw new Error('Career data: ' + error.message);
+      const d = data || {};
+      DB.companies = d.companies || [];
+      DB.branches = d.branches || [];
+      DB.sources = d.sources || [];
+      DB.positions = d.positions || [];
+      DB.requisitions = d.requisitions || [];
+      DB.position_requirements = d.position_requirements || [];
+      const companyIds = new Set((DB.companies || []).map(c => c.company_id));
+      const missingCompanyIds = [...new Set((DB.requisitions || []).map(r => r.company_id).filter(id => id && !companyIds.has(id)))];
+      if (missingCompanyIds.length) {
+        throw new Error('Integritas master perusahaan belum sinkron untuk company_id: ' + missingCompanyIds.join(', ') + '. Jalankan ATS V1.2 Company Dedup patch.');
+      }
+    }
+
+    function syncBrandUI() {
+      const companies = activeCompanies();
+      const names = companies.map(c => c.brand || c.company_name || c.company_code).filter(Boolean);
+      document.getElementById('headerBrandText').textContent = names.length ? names.join(' · ') : 'Halaman Karir';
+      document.getElementById('brandCountLabel').textContent = `${companies.length} ${companies.length === 1 ? 'Perusahaan' : 'Perusahaan'}`;
+      document.getElementById('footerCompanies').textContent = `© ${new Date().getFullYear()} ${companies.map(c => c.company_name || c.brand).join(' · ') || 'Halaman Karir'}`;
+      document.title = names.length ? `Karir Bersama Kami | ${names.join(' & ')}` : 'Karir Bersama Kami';
+
+      const chips = document.getElementById('headerBrandChips');
+      chips.innerHTML = companies.map(c => `<span class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">${esc(c.brand || c.company_name)}</span>`).join('');
+
+      const filters = document.getElementById('brandFilters');
+      filters.innerHTML = `<button onclick="setFilter('all')" id="filter-all" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-primary-600 text-white">Semua</button>` +
+        companies.map(c => `<button onclick="setFilter('${esc(c.company_id)}')" id="filter-${esc(c.company_id)}" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">${esc(c.brand || c.company_name)}</button>`).join('');
+    }
+
+    function showToast(msg, type = 'info') {
+      const colors = { success: 'bg-green-600', danger: 'bg-red-600', warning:'bg-amber-600', info: 'bg-primary-600' };
+      const el = document.createElement('div');
+      el.className = `toast ${colors[type]||colors.info} text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-2 min-w-[260px]`;
+      el.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':type==='danger'?'exclamation-circle':'info-circle'}"></i> <span>${esc(msg)}</span>`;
+      document.getElementById('toastContainer').appendChild(el);
+      setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3500);
+    }
+
+    function setFilter(companyId) {
+      currentFilter = companyId;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.remove('bg-primary-600','text-white');
+        b.classList.add('bg-white','border','border-slate-200','text-slate-600');
+      });
+      const active = document.getElementById('filter-' + companyId);
+      if (active) {
+        active.classList.remove('bg-white','border','border-slate-200','text-slate-600');
+        active.classList.add('bg-primary-600','text-white');
+      }
+      renderJobs();
+    }
+
+    function getActiveJobs() {
+      let list = (DB.requisitions||[]).filter(r => ['Dibuka','Dalam Proses','Sebagian Terpenuhi'].includes(r.status));
+      if (currentFilter !== 'all') list = list.filter(r => r.company_id === currentFilter);
+      return list;
+    }
+
+    function getRequirements(positionId) {
+      return (DB.position_requirements||[])
+        .filter(x => x.position_id === positionId && x.required !== false)
+        .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    }
+
+    function renderJobs() {
+      const jobs = getActiveJobs();
+      const list = document.getElementById('jobList');
+      const empty = document.getElementById('emptyState');
+      document.getElementById('jobCountLabel').textContent = jobs.length + ' Lowongan';
+      if (!jobs.length) { list.innerHTML=''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      list.innerHTML = jobs.map(r => {
+        const pos=getPosition(r.position_id), co=getCompany(r.company_id), br=getBranch(r.branch_id);
+        const reqs=getRequirements(r.position_id);
+        const sisa=Math.max(0,(r.required_headcount||1)-(r.filled_headcount||0));
+        const urgent=r.priority==='Urgent'||r.priority==='Tinggi';
+        const salaryText=r.show_salary&&r.salary_min?`Rp ${(r.salary_min/1e6).toFixed(1)}–${((r.salary_max||r.salary_min)/1e6).toFixed(1)} jt`:null;
+        const qualItems=reqs.length ? reqs.map(q => `${q.requirement_type ? esc(q.requirement_type)+': ' : ''}${esc(q.requirement_text)}`) : [
+          pos?.qualification ? `Pendidikan: ${esc(pos.qualification)}` : '',
+          pos?.experience_text ? `Pengalaman: ${esc(pos.experience_text)}` : '',
+          pos?.special_requirement ? esc(pos.special_requirement) : ''
+        ].filter(Boolean);
+        return `<article class="job-card bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3"><div class="flex-1">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              ${co?.logo_url?`<img src="${esc(co.logo_url)}" alt="" class="h-8 w-8 object-contain rounded border border-slate-100 bg-white" onerror="this.style.display='none'">`:''}
+              <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-primary-50 text-primary-700 border-primary-100">${esc(co?.brand||co?.company_name||'-')}</span>
+              <span class="text-xs text-slate-400">${esc(pos?.position_level||'')}</span>
+              <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">${esc(r.employment_type||'Full-time')}</span>
+              ${urgent?`<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Urgent</span>`:''}
+            </div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-800">${esc(pos?.position_name||'Posisi')}</h2>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-slate-500">
+              <span><i class="fas fa-map-marker-alt mr-1.5 text-slate-400"></i>${esc(br?.branch_name||pos?.location||'Lokasi mengikuti kebutuhan')}</span>
+              <span><i class="fas fa-users mr-1.5 text-slate-400"></i>${sisa} posisi tersedia</span>
+            </div></div></div>
+          <div class="mt-4"><h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Deskripsi Pekerjaan</h3><p class="text-sm text-slate-600 leading-relaxed whitespace-pre-line">${esc(pos?.job_description||'Deskripsi akan segera tersedia.')}</p></div>
+          <div class="mt-4"><h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Kualifikasi</h3>${qualItems.length?`<ul class="text-sm text-slate-600 space-y-1">${qualItems.slice(0,8).map(q=>`<li class="flex gap-2"><span class="text-primary-500 mt-0.5">•</span><span>${q}</span></li>`).join('')}</ul>`:`<p class="text-sm text-slate-400">Kualifikasi mengikuti standar posisi.</p>`}</div>
+          <div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">${r.work_hours?`<span class="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg"><i class="fas fa-clock"></i> ${esc(r.work_hours)}</span>`:''}${salaryText?`<span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-lg"><i class="fas fa-money-bill-wave"></i> ${salaryText}</span>`:''}${r.benefit?`<span class="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg"><i class="fas fa-gift"></i> ${esc(r.benefit)}</span>`:''}</div>
+          <button onclick="openApply('${esc(r.requisition_id)}')" class="mt-5 w-full sm:w-auto px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"><i class="fas fa-paper-plane mr-2"></i>Lamar Sekarang</button>
+        </article>`;
+      }).join('');
+    }
+
+    function openApply(reqId) {
+      const req=(DB.requisitions||[]).find(r=>r.requisition_id===reqId); if(!req)return showToast('Lowongan tidak ditemukan','danger');
+      const pos=getPosition(req.position_id),co=getCompany(req.company_id),br=getBranch(req.branch_id);
+      document.getElementById('applyForm').reset();
+      document.getElementById('fReqId').value=reqId;
+      document.getElementById('modalJobTitle').textContent=pos?.position_name||'Lamar Posisi';
+      document.getElementById('modalJobMeta').textContent=[co?.brand||co?.company_name,br?.branch_name].filter(Boolean).join(' · ');
+      const srcSel=document.getElementById('fSource');
+      srcSel.innerHTML=(DB.sources||[]).filter(s=>(s.status||'Aktif')==='Aktif').map(s=>`<option value="${esc(s.source_id)}">${esc(s.source_name)}</option>`).join('');
+      const webSrc=(DB.sources||[]).find(s=>/website|career|karir/i.test(s.source_name||'')); if(webSrc)srcSel.value=webSrc.source_id;
+      document.getElementById('modalBackdrop').classList.remove('hidden'); document.getElementById('modalBackdrop').classList.add('flex');
+    }
+    function closeModal(){document.getElementById('modalBackdrop').classList.add('hidden');document.getElementById('modalBackdrop').classList.remove('flex');}
+    document.getElementById('modalBackdrop').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+
+    async function submitApply(e) {
+      e.preventDefault();
+      const btn=e.target.querySelector('button[type=submit]');
+      const name=document.getElementById('fName').value.trim(),email=document.getElementById('fEmail').value.trim(),phone=document.getElementById('fPhone').value.trim();
+      const reqId=document.getElementById('fReqId').value, req=(DB.requisitions||[]).find(r=>r.requisition_id===reqId);
+      if(!name||!email||!phone)return showToast('Nama, email, dan WhatsApp wajib diisi','danger');
+      if(!req)return showToast('Lowongan tidak valid atau sudah tidak tersedia','danger');
+      const birth=document.getElementById('fBirth').value||null; let age=null;
+      if(birth){age=Math.floor((Date.now()-new Date(birth).getTime())/(365.25*86400000));if(!Number.isFinite(age)||age<15||age>80)return showToast('Tanggal lahir tidak valid','danger');}
+      const reason=document.getElementById('fReason').value.trim(); if(!reason)return showToast('Alasan ingin bergabung wajib diisi','danger');
+      const cvFile=document.getElementById('fCV')?.files?.[0]; if(!cvFile)return showToast('CV wajib diupload (PDF)','danger');
+      if(!(cvFile.type==='application/pdf'||/\.pdf$/i.test(cvFile.name||'')))return showToast('CV harus format PDF','danger');
+      if(cvFile.size>5*1024*1024)return showToast('Ukuran CV maksimal 5MB','danger');
+      if(btn){btn.disabled=true;btn.textContent='Mengirim...';}
+      let uploadedPath=null;
+      try {
+        // Path random; candidate ID dibuat server oleh RPC agar duplicate-safe.
+        const token=(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2));
+        uploadedPath=`incoming/${token}.pdf`;
+        const {error:upErr}=await supabaseClient.storage.from('cv-uploads').upload(uploadedPath,cvFile,{contentType:'application/pdf',upsert:false});
+        if(upErr)throw new Error('Upload CV gagal: '+upErr.message);
+        const {data:pub}=supabaseClient.storage.from('cv-uploads').getPublicUrl(uploadedPath);
+        const cvPath=pub?.publicUrl||uploadedPath;
+        const payload={
+          p_requisition_id:reqId,p_candidate_name:name,p_email:email,p_phone:phone,
+          p_city:document.getElementById('fCity').value.trim()||null,p_birth_date:birth,p_age:age,
+          p_education:document.getElementById('fEducation').value||null,p_major:document.getElementById('fMajor').value.trim()||null,
+          p_last_company:document.getElementById('fLastCompany').value.trim()||null,p_last_role:document.getElementById('fLastRole').value.trim()||null,
+          p_experience:parseInt(document.getElementById('fExp').value)||0,p_expected_salary:parseInt(document.getElementById('fSalary').value)||null,
+          p_notice_period:document.getElementById('fNotice').value||null,p_willing_shift:document.getElementById('fShift').value||null,
+          p_apply_reason:reason,p_source_id:document.getElementById('fSource').value||null,p_cv_path:cvPath
+        };
+        const {data,error}=await supabaseClient.rpc('submit_job_application',payload); if(error)throw error;
+        const result=Array.isArray(data)?data[0]:data; const cid=result?.candidate_id; if(!cid)throw new Error('Server tidak mengembalikan ID kandidat');
+        closeModal();document.getElementById('successId').textContent=cid;document.getElementById('successBox').classList.remove('hidden');document.getElementById('jobList').innerHTML='';document.getElementById('emptyState').classList.add('hidden');window.scrollTo({top:0,behavior:'smooth'});showToast('Lamaran berhasil dikirim!','success');
+      } catch(err) {
+        console.error(err);showToast('Lamaran belum terkirim: '+(err.message||err),'danger');
+        // best-effort cleanup; kegagalan cleanup tidak mengubah status lamaran.
+        if(uploadedPath){try{await supabaseClient.storage.from('cv-uploads').remove([uploadedPath]);}catch(_){}}
+      } finally {if(btn){btn.disabled=false;btn.innerHTML='<i class="fas fa-paper-plane mr-1.5"></i>Kirim Lamaran';}}
+    }
+    function hideSuccess(){document.getElementById('successBox').classList.add('hidden');renderJobs();}
+
+    document.addEventListener('DOMContentLoaded',async()=>{
+      document.getElementById('jobList').innerHTML='<div class="text-center py-12 text-slate-400"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Memuat lowongan dari server...</p></div>';
+      try{await loadFromSupabase();syncBrandUI();renderJobs();}
+      catch(err){console.error(err);document.getElementById('jobList').innerHTML=`<div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-center"><p class="font-medium text-red-800">Gagal memuat halaman karir</p><p class="text-sm text-red-600 mt-1">${esc(err.message||'Periksa koneksi Supabase')}</p></div>`;}
+    });
+  </script>
+</body>
+</html>
